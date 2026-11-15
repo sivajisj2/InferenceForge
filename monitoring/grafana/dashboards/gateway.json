@@ -1,0 +1,189 @@
+{
+  "uid": "inferenceforge",
+  "title": "InferenceForge \u2022 Gateway operations",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Requests per second",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "forge-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(ai_requests_total[1m]))",
+          "refId": "A",
+          "legendFormat": "Requests/s"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "P95 request duration (seconds)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "forge-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(ai_request_duration_seconds_bucket[5m])))",
+          "refId": "A",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Backend attempts by outcome",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "forge-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (backend, outcome) (rate(ai_backend_attempts_total[1m]))",
+          "refId": "A",
+          "legendFormat": "{{backend}} \u00b7 {{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Requests in flight",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "forge-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "ai_inflight_requests",
+          "refId": "A",
+          "legendFormat": "In flight"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Circuit open (1 = open)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "forge-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "ai_circuit_open",
+          "refId": "A",
+          "legendFormat": "{{backend}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Failovers per minute",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "forge-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(ai_failovers_total[1m]))",
+          "refId": "A",
+          "legendFormat": "Failovers/min"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Waiting requests",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "forge-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "targets": [
+        {
+          "expr": "ai_queued_requests",
+          "refId": "A",
+          "legendFormat": "Waiting"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Admission outcomes",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "forge-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "targets": [
+        {
+          "expr": "sum by (outcome) (rate(ai_admissions_total[1m]))",
+          "refId": "A",
+          "legendFormat": "{{outcome}}"
+        }
+      ]
+    }
+  ]
+}

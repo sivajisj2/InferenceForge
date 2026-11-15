@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light"><title>InferenceForge · Gateway console</title><link rel="icon" href="data:,"><link rel="stylesheet" href="/console.css"><script type="module" src="/console.js"></script></head>
+<body><header><div class="shell nav"><a href="/" class="brand"><span class="mark" aria-hidden="true">≋</span> InferenceForge</a><span class="navlink">Gateway console</span><a class="metricslink" href="/metrics">Metrics ↗</a></div></header>
+<main class="shell"><div class="title"><div><p class="eyebrow">INFERENCE OPERATIONS</p><h1>Gateway overview</h1></div><span id="connection" role="status" class="pill">Connecting</span></div>
+<section aria-label="Gateway metrics" class="stats">
+<div><span>Admitted requests</span><strong id="admitted">—</strong></div>
+<div><span>In flight</span><strong id="active">—</strong></div>
+<div><span>Waiting</span><strong id="queued">—</strong></div>
+<div><span>Failovers</span><strong id="failovers">—</strong></div></section>
+<div class="cols"><section class="panel"><div class="panelhead"><h2>Request playground</h2><code>POST /v1/chat/completions</code></div>
+<form id="request"><div class="row"><label>Gateway key<input type="password" id="key" required autocomplete="off" placeholder="Enter your local API key"></label><label>Response format<select id="mode"><option value="stream">SSE stream</option><option value="json">JSON</option></select></label></div>
+<label>Message<textarea id="prompt" required rows="3">Hello from the gateway console.</textarea></label>
+<div class="actions"><button id="run" type="submit">Run request →</button><button type="button" id="cancel" disabled>Cancel</button><span class="model" id="model">—</span></div></form>
+<div class="output"><div class="outhead"><span>RESPONSE</span><span id="result">Idle</span></div><pre id="output" aria-live="polite">Run a request to inspect its response.</pre></div>
+</section><section class="panel fleet"><div class="panelhead"><h2>Worker pool</h2><span class="model">Round robin</span></div><p class="hint">Routing decisions and circuit state</p><div id="workers"></div><p class="fine">Counts show accepted upstream headers since the gateway started. Circuit state follows observed traffic.</p></section></div>
+<section class="panel history"><div class="panelhead"><h2>Request history</h2><span class="model">This tab · last 10</span></div><div class="scroll"><table><thead><tr><th>Request ID</th><th>Worker</th><th>Result</th><th>First content</th><th>Total</th></tr></thead><tbody id="history"></tbody></table></div><p class="fine" id="empty">Your requests will appear here.</p></section>
+</main></body></html>

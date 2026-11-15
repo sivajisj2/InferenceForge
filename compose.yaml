@@ -1,0 +1,79 @@
+services:
+  model-a:
+    build: .
+    image: inferenceforge:local
+    pull_policy: never
+    command: ["mock_worker"]
+    environment:
+      PORT: "9000"
+      BACKEND_NAME: A
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+
+  model-b:
+    image: inferenceforge:local
+    pull_policy: never
+    command: ["mock_worker"]
+    environment:
+      PORT: "9001"
+      BACKEND_NAME: B
+    depends_on:
+      model-a:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9001/health"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+
+  gateway:
+    image: inferenceforge:local
+    pull_policy: never
+    command: ["inferenceforge"]
+    environment:
+      LOG_FORMAT: json
+      BACKEND_A: http://model-a:9000
+      BACKEND_B: http://model-b:9001
+      GATEWAY_API_KEY: ${GATEWAY_API_KEY:-local-demo-key}
+      MAX_INFLIGHT: "4"
+      MAX_WAITING: "2"
+      QUEUE_WAIT_MS: "150"
+      RATE_LIMIT_RPS: "100"
+      RATE_LIMIT_BURST: "30"
+    ports:
+      - "127.0.0.1:${GATEWAY_PORT:-8007}:8001"
+    depends_on:
+      model-a:
+        condition: service_healthy
+      model-b:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8001/ready"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=2d"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9097}:9090"
+    depends_on:
+      - gateway
+  grafana:
+    image: grafana/grafana:12.1.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-local-demo-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3007}:3000"
+    depends_on:
+      - prometheus

@@ -1,0 +1,49 @@
+name: Verify gateway
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+concurrency:
+  group: gateway-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: make check test
+  deployments:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image and start all five services
+        run: make up
+      - name: Exercise inference, failover and observability
+        run: |
+          bash scripts/smoke_test.sh
+          make drill
+          python3 scripts/check_monitoring.py
+      - name: Load the same image into a disposable Kubernetes cluster
+        run: |
+          docker compose down
+          kind create cluster --wait 120s
+          kind load docker-image inferenceforge:local
+          kubectl create secret generic inferenceforge-auth --from-literal=api-key=local-demo-key
+          kubectl apply -f k8s/all.yaml
+          for app in model-a model-b inference-gateway; do kubectl rollout status "deployment/$app" --timeout=150s; done
+          kubectl port-forward service/inference-gateway 8007:8001 > /tmp/forge-forward.log 2>&1 &
+          forward=$!
+          trap 'kill "$forward" || true' EXIT
+          curl --fail --silent --retry 10 --retry-connrefused http://127.0.0.1:8007/ready
+          bash scripts/smoke_test.sh
+      - name: Diagnostics
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --tail=40
+          kubectl get pods -o wide || true

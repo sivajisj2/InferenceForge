@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-a
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: model-a}
+  template:
+    metadata:
+      labels: {app: model-a}
+    spec:
+      containers:
+        - name: model-a
+          image: inferenceforge:local
+          imagePullPolicy: IfNotPresent
+          command: ["mock_worker"]
+          env:
+            - {name: PORT, value: "9000"}
+            - {name: BACKEND_NAME, value: A}
+          ports:
+            - {containerPort: 9000}
+          readinessProbe:
+            httpGet: {path: /health, port: 9000}
+            periodSeconds: 3
+          livenessProbe:
+            httpGet: {path: /health, port: 9000}
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: model-a
+spec:
+  selector: {app: model-a}
+  ports:
+    - {port: 9000, targetPort: 9000}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-b
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: model-b}
+  template:
+    metadata:
+      labels: {app: model-b}
+    spec:
+      containers:
+        - name: model-b
+          image: inferenceforge:local
+          imagePullPolicy: IfNotPresent
+          command: ["mock_worker"]
+          env:
+            - {name: PORT, value: "9001"}
+            - {name: BACKEND_NAME, value: B}
+          ports:
+            - {containerPort: 9001}
+          readinessProbe:
+            httpGet: {path: /health, port: 9001}
+            periodSeconds: 3
+          livenessProbe:
+            httpGet: {path: /health, port: 9001}
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: model-b
+spec:
+  selector: {app: model-b}
+  ports:
+    - {port: 9001, targetPort: 9001}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inference-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: inference-gateway}
+  template:
+    metadata:
+      labels: {app: inference-gateway}
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: gateway
+          image: inferenceforge:local
+          imagePullPolicy: IfNotPresent
+          command: ["inferenceforge"]
+          env:
+            - {name: BACKEND_A, value: "http://model-a:9000"}
+            - {name: BACKEND_B, value: "http://model-b:9001"}
+            - name: GATEWAY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: inferenceforge-auth
+                  key: api-key
+            - {name: MAX_INFLIGHT, value: "16"}
+            - {name: MAX_WAITING, value: "8"}
+            - {name: RATE_LIMIT_RPS, value: "100"}
+            - {name: RATE_LIMIT_BURST, value: "30"}
+          ports:
+            - {containerPort: 8001}
+          readinessProbe:
+            httpGet: {path: /ready, port: 8001}
+            periodSeconds: 3
+          livenessProbe:
+            httpGet: {path: /health, port: 8001}
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inference-gateway
+spec:
+  selector: {app: inference-gateway}
+  ports:
+    - {port: 8001, targetPort: 8001}

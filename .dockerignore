@@ -1,0 +1,6 @@
+target
+.git
+*.zip
+.env
+models
+docs
