@@ -1,0 +1,22 @@
+{
+  "engine": "llama.cpp b12403",
+  "model_alias": "smollm2",
+  "quantization": "Q4_K_M",
+  "prompt": "What is the capital of France?",
+  "temperature": 0,
+  "max_tokens": 24,
+  "json_message": {
+    "role": "assistant",
+    "content": "The capital of France is Paris."
+  },
+  "usage": {
+    "completion_tokens": 8,
+    "prompt_tokens": 37,
+    "total_tokens": 45,
+    "prompt_tokens_details": {
+      "cached_tokens": 36
+    }
+  },
+  "stream_content": "The capital of France is Paris.",
+  "stream_terminated": true
+}

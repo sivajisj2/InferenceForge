@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise real HTTP sockets and Rust binaries. Only the test's child workers are stopped."""
+
 import http.client
 import json
 import os
@@ -33,7 +34,7 @@ def eventually(check, timeout=4):
                 return
         except OSError:
             pass
-        time.sleep(.02)
+        time.sleep(0.02)
     raise AssertionError("Condition did not become true")
 
 
@@ -52,11 +53,13 @@ class Gateway(unittest.TestCase):
         env = {**os.environ, **settings, "TOKIO_WORKER_THREADS": "2"}
         child = subprocess.Popen([BIN / binary], env=env, stdout=subprocess.DEVNULL)
         self.addCleanup(stop, child)
+
         def ready():
             if child.poll() is not None:
                 raise AssertionError(f"{binary} exited during startup")
-            with HTTP.open(f"http://127.0.0.1:{port}/health", timeout=.3) as response:
+            with HTTP.open(f"http://127.0.0.1:{port}/health", timeout=0.3) as response:
                 return response.status == 200
+
         eventually(ready)
         return child
 
@@ -67,21 +70,43 @@ class Gateway(unittest.TestCase):
         self.worker("B", b_port)
         self.port = free_port()
         self.base = f"http://127.0.0.1:{self.port}"
-        config = dict(LISTEN_ADDR=f"127.0.0.1:{self.port}", GATEWAY_API_KEY=KEY,
-                      MODEL_NAME="mock-llm", BACKEND_A=f"http://127.0.0.1:{self.a_port}",
-                      BACKEND_B=f"http://127.0.0.1:{b_port}", MAX_INFLIGHT="4",
-                      MAX_WAITING="2", RATE_LIMIT_BURST="30", RATE_LIMIT_RPS="100")
+        config = dict(
+            LISTEN_ADDR=f"127.0.0.1:{self.port}",
+            GATEWAY_API_KEY=KEY,
+            MODEL_NAME="mock-llm",
+            BACKEND_A=f"http://127.0.0.1:{self.a_port}",
+            BACKEND_B=f"http://127.0.0.1:{b_port}",
+            MAX_INFLIGHT="4",
+            MAX_WAITING="2",
+            RATE_LIMIT_BURST="30",
+            RATE_LIMIT_RPS="100",
+        )
         self.gateway = self.launch("inferenceforge", self.port, **(config | settings))
 
     def worker(self, name, port, fail=False):
-        return self.launch("mock_worker", port, BACKEND_NAME=name, BIND_HOST="127.0.0.1",
-                           PORT=str(port), FAIL_MODE="always" if fail else "")
+        return self.launch(
+            "mock_worker",
+            port,
+            BACKEND_NAME=name,
+            BIND_HOST="127.0.0.1",
+            PORT=str(port),
+            FAIL_MODE="always" if fail else "",
+        )
 
     def chat(self, raw=None, key=KEY, **options):
-        payload = {"model": "mock-llm", "messages": [{"role":"user","content":"test"}], **options}
-        req = urllib.request.Request(self.base + "/v1/chat/completions",
-              data=json.dumps(payload).encode() if raw is None else raw,
-              headers={"Authorization": "Bearer "+key, "Content-Type":"application/json"})
+        payload = {
+            "model": "mock-llm",
+            "messages": [{"role": "user", "content": "test"}],
+            **options,
+        }
+        req = urllib.request.Request(
+            self.base + "/v1/chat/completions",
+            data=json.dumps(payload).encode() if raw is None else raw,
+            headers={
+                "Authorization": "Bearer " + key,
+                "Content-Type": "application/json",
+            },
+        )
         try:
             return HTTP.open(req, timeout=5)
         except urllib.error.HTTPError as e:
@@ -93,16 +118,22 @@ class Gateway(unittest.TestCase):
 
     def test_auth_validation_limit_and_round_robin(self):
         self.start()
-        for kwargs, code in [({"raw":b"{","key":"wrong"},401),
-                             ({"raw":b"x"*1100000},413), ({"model":"unknown"},400),
-                             ({"messages":[{}]},400), ({"stream":"yes"},400)]:
+        for kwargs, code in [
+            ({"raw": b"{", "key": "wrong"}, 401),
+            ({"raw": b"x" * 1100000}, 413),
+            ({"model": "unknown"}, 400),
+            ({"messages": [{}]}, 400),
+            ({"stream": "yes"}, 400),
+        ]:
             with self.chat(**kwargs) as response:
-                self.assertEqual(response.status,code)
+                self.assertEqual(response.status, code)
         for worker in "AB":
             with self.chat() as response:
                 self.assertEqual(response.headers["x-backend"], worker)
-                self.assertEqual(json.load(response)["choices"][0]["message"]["content"],
-                                 "Hello from model "+worker)
+                self.assertEqual(
+                    json.load(response)["choices"][0]["message"]["content"],
+                    "Hello from model " + worker,
+                )
         self.assertEqual(self.pool()["admitted"], 2)
 
     def test_stream_holds_permit_bounds_waiters_and_cancels(self):
@@ -112,21 +143,26 @@ class Gateway(unittest.TestCase):
             queued = executor.submit(self.chat)
             eventually(lambda: self.pool()["queued"] == 1)
             with self.chat() as excess:
-                self.assertEqual(excess.status,503)
-                self.assertIn(b"queue full",excess.read())
+                self.assertEqual(excess.status, 503)
+                self.assertIn(b"queue full", excess.read())
             stream.close()
             with queued.result(timeout=3) as next_request:
-                self.assertEqual(next_request.status,200)
+                self.assertEqual(next_request.status, 200)
         eventually(lambda: self.pool()["active"] == self.pool()["queued"] == 0)
 
     def test_queue_deadline_and_rate_quota(self):
-        self.start(MAX_INFLIGHT="1", QUEUE_WAIT_MS="25", RATE_LIMIT_RPS="1", RATE_LIMIT_BURST="2")
+        self.start(
+            MAX_INFLIGHT="1",
+            QUEUE_WAIT_MS="25",
+            RATE_LIMIT_RPS="1",
+            RATE_LIMIT_BURST="2",
+        )
         with self.chat(stream=True) as stream:
             with self.chat() as waiting:
-                self.assertEqual(waiting.status,503)
-                self.assertIn(b"queue timeout",waiting.read())
+                self.assertEqual(waiting.status, 503)
+                self.assertIn(b"queue timeout", waiting.read())
             with self.chat() as limited:
-                self.assertEqual(limited.status,429)
+                self.assertEqual(limited.status, 429)
                 self.assertEqual(limited.headers["Retry-After"], "1")
             self.assertIn(b"data: [DONE]", stream.read())
 
@@ -137,42 +173,42 @@ class Gateway(unittest.TestCase):
             with self.chat() as response:
                 self.assertEqual(response.headers["x-backend"], "B")
         self.assertEqual(self.pool()["backends"][0]["circuit"], "open")
-        self.worker("A",self.a_port)
-        eventually(lambda: self.pool()["backends"][0]["circuit"] == "probe-ready",12)
+        self.worker("A", self.a_port)
+        eventually(lambda: self.pool()["backends"][0]["circuit"] == "probe-ready", 12)
         with self.chat() as probe:
-            self.assertEqual(probe.headers["x-backend"],"A")
-        self.assertEqual(self.pool()["backends"][0]["circuit"],"closed")
+            self.assertEqual(probe.headers["x-backend"], "A")
+        self.assertEqual(self.pool()["backends"][0]["circuit"], "closed")
 
     def test_no_replay_after_server_error(self):
         self.start(fail_a=True)
         with self.chat() as failed:
-            self.assertEqual(failed.status,502)
-        self.assertEqual(self.pool()["backends"][1]["accepted_headers"],0)
+            self.assertEqual(failed.status, 502)
+        self.assertEqual(self.pool()["backends"][1]["accepted_headers"], 0)
 
     def test_header_timeout_is_not_replayed(self):
         self.start(HEADER_TIMEOUT_MS="35")
         with self.chat() as timed_out:
-            self.assertEqual(timed_out.status,504)
-        self.assertEqual(self.pool()["failovers"],0)
+            self.assertEqual(timed_out.status, 504)
+        self.assertEqual(self.pool()["failovers"], 0)
 
     def test_stream_deadline_aborts_without_sentinel(self):
         self.start(GENERATION_BUDGET_MS="310")
         with self.chat(stream=True) as stream:
-            self.assertEqual(stream.status,200)
+            self.assertEqual(stream.status, 200)
             with self.assertRaises(http.client.IncompleteRead) as aborted:
                 stream.read()
-            self.assertNotIn(b"[DONE]",aborted.exception.partial)
+            self.assertNotIn(b"[DONE]", aborted.exception.partial)
         eventually(lambda: self.pool()["active"] == 0)
         with HTTP.open(self.base + "/metrics") as response:
-            self.assertIn(b"ai_stream_errors_total 1",response.read())
+            self.assertIn(b"ai_stream_errors_total 1", response.read())
 
     def test_sigterm_drains_open_stream(self):
         self.start()
         with self.chat(stream=True) as stream:
-            self.assertIn(b"Hello",stream.readline())
+            self.assertIn(b"Hello", stream.readline())
             self.gateway.terminate()
-            self.assertIn(b"[DONE]",stream.read())
-        self.assertEqual(self.gateway.wait(timeout=3),0)
+            self.assertIn(b"[DONE]", stream.read())
+        self.assertEqual(self.gateway.wait(timeout=3), 0)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,23 @@
+{
+  "requests": 60,
+  "concurrency": 12,
+  "warmup": 5,
+  "duration_seconds": 0.206,
+  "statuses": {
+    "200": 4,
+    "503": 27,
+    "429": 29
+  },
+  "attempts_per_second": 291.65,
+  "completions_per_second": 19.44,
+  "success_latency_ms": {
+    "p50": 203.01,
+    "p95": 203.84,
+    "p99": 203.84
+  },
+  "failure_latency_ms": {
+    "p50": 1.71,
+    "p95": 3.27,
+    "p99": 152.74
+  }
+}

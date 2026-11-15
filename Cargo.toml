@@ -2,6 +2,9 @@
 name = "inferenceforge"
 version = "0.1.0"
 edition = "2021"
+description = "Streaming inference gateway with bounded admission and worker failover"
+repository = "https://github.com/sivajisj2/InferenceForge"
+publish = false
 
 [dependencies]
 axum = "0.8"
